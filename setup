@@ -66,9 +66,12 @@ printf '%s\n' "$ffmpeg" > "$stage/release/ffmpeg.path"
 /usr/bin/ditto "$repo/migrations" "$stage/release/migrations"
 export PATH="$stage/node/bin:$stage/go-tool/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export GOTOOLCHAIN=local
-npm --prefix "$stage/release/server" ci --no-audit --no-fund
-npm --prefix "$stage/release/server" run build
-npm --prefix "$stage/release/server" prune --omit=dev --no-audit --no-fund
+(
+  cd -P "$stage/release/server"
+  npm ci --no-audit --no-fund
+  npm run build
+  npm prune --omit=dev --no-audit --no-fund
+)
 /bin/rm -rf "$stage/release/server/src" "$stage/release/server/tsconfig.json"
 (
   cd "$repo/go"
