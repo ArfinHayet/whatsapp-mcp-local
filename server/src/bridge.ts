@@ -9,6 +9,7 @@ export class Bridge {
   private child?: ChildProcessByStdio<Writable, Readable, null>;
   private exited?: Promise<void>;
   state = "starting";
+  pairingError?: string;
   qr?: QR;
 
   start(binary: string, data: string, ffmpeg: string, onFirstState: () => void, onUnexpectedExit: () => void) {
@@ -33,6 +34,8 @@ export class Bridge {
         const message = JSON.parse(line);
         if (message.type === "state" && typeof message.state === "string") {
           this.state = message.state;
+          this.pairingError = this.state === "pairing_required" && typeof message.reason === "string"
+            ? message.reason || undefined : undefined;
           if (this.state !== "pairing") this.qr = undefined;
           if (!receivedState) {
             receivedState = true;

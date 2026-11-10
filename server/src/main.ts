@@ -104,7 +104,10 @@ async function main() {
       throw new HTTPError(403, "Use the dashboard to perform this action.");
     }
     if (method === "GET" && path === "/api/status") {
-      return json(response, 200, { app: "whatsapp-mcp-local", instance, state, whatsapp: currentState(), startCommand });
+      return json(response, 200, {
+        app: "whatsapp-mcp-local", instance, state, whatsapp: currentState(),
+        pairingError: bridge.pairingError, startCommand,
+      });
     }
     if (method === "GET") {
       const file = staticFiles.get(path);

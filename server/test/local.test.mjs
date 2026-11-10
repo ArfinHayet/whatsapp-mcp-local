@@ -77,10 +77,15 @@ test("local HTTP, QR, assets, dual MCP handshakes, restart and durable stop", { 
   await writeFile(join(root, "current/bin/whatsapp-bridge"), `#!${process.execPath}
 const { createInterface } = require("node:readline");
 console.log(JSON.stringify({ type: "state", state: "pairing_required" }));
+let requests = 0;
 createInterface({input: process.stdin}).on("line", (line) => {
   const { type } = JSON.parse(line);
   if (type === "drain") process.exit(0);
   if (type === "pair") {
+    if (++requests === 2) {
+      console.log(JSON.stringify({type: "state", state: "pairing_required", reason: "qr_expired"}));
+      return;
+    }
     console.log(JSON.stringify({type: "state", state: "pairing"}));
     console.log(JSON.stringify({type: "qr", code: "synthetic test QR", expiresAtMs: Date.now() + 30000}));
   }
@@ -113,6 +118,12 @@ else {
 
   const first = await boot();
   assert.match(await (await fetch(base)).text(), /WhatsApp connection/);
+  assert.match(await eventually(async () => (await (await fetch(base + "/api/pairing")).json()).image), /^data:image\/png;base64,/);
+  const requestQR = () => fetch(base + "/api/pairing", { method: "POST", headers: { origin: base } });
+  assert.equal((await requestQR()).status, 202);
+  await eventually(async () => (await (await fetch(base + "/api/status")).json()).pairingError === "qr_expired");
+  assert.deepEqual(await (await fetch(base + "/api/pairing")).json(), { image: null });
+  assert.equal((await requestQR()).status, 202);
   assert.match(await eventually(async () => (await (await fetch(base + "/api/pairing")).json()).image), /^data:image\/png;base64,/);
   assert.equal((await stat(join(data, "run/mcp.sock"))).mode & 0o777, 0o600);
   const configs = await (await fetch(base + "/api/config")).json();

@@ -41,6 +41,7 @@ type worker struct {
 	pairing   bool
 	outputMu  sync.Mutex
 	state     string
+	reason    string
 	output    *json.Encoder
 }
 
@@ -100,7 +101,10 @@ func run(parent context.Context, data, ffmpeg string) error {
 	w := &worker{db: db, keys: keys, ctx: ctx, assets: filepath.Join(data, "assets"), ffmpeg: ffmpeg, output: json.NewEncoder(os.Stdout)}
 	client := whatsmeow.NewClient(device, waLog.Noop)
 	w.setClient(client)
-	defer func() { w.client.Load().Disconnect() }()
+	defer func() {
+		cancel()
+		w.client.Load().Disconnect()
+	}()
 	if _, err = db.ExecContext(ctx, `UPDATE commands
 		SET status = CASE status WHEN 'running' THEN 'unknown' ELSE 'expired' END,
 		    completed_at_ms = ?, result_json = NULL
@@ -161,12 +165,17 @@ func (w *worker) emit(message map[string]any) {
 }
 
 func (w *worker) setState(state string) {
+	w.transition("", state, "")
+}
+
+func (w *worker) transition(previous, state, reason string) {
 	w.outputMu.Lock()
 	defer w.outputMu.Unlock()
-	if w.state != state {
-		w.state = state
-		_ = w.output.Encode(map[string]any{"type": "state", "state": state})
+	if (previous != "" && w.state != previous) || (w.state == state && w.reason == reason) {
+		return
 	}
+	w.state, w.reason = state, reason
+	_ = w.output.Encode(map[string]any{"type": "state", "state": state, "reason": reason})
 }
 
 func (w *worker) setClient(client *whatsmeow.Client) {
@@ -207,7 +216,7 @@ func (w *worker) requestPairing() {
 		defer func() { w.mu.Lock(); w.pairing = false; w.mu.Unlock() }()
 		device, err := w.keys.GetFirstDevice(w.ctx)
 		if err != nil {
-			w.setState("pairing_required")
+			w.transition("", "pairing_required", "qr_setup_failed")
 			return
 		}
 		if device.ID != nil {
@@ -220,30 +229,18 @@ func (w *worker) requestPairing() {
 		oldClient.Disconnect()
 		w.loggedOut.Store(false)
 
-		ctx, cancel := context.WithCancel(w.ctx)
-		defer cancel()
-		qr, err := client.GetQRChannel(ctx)
-		if err != nil {
-			w.setState("pairing_required")
-			return
-		}
-		w.setState("pairing")
-		if err = client.ConnectContext(ctx); err != nil {
-			w.setState("pairing_required")
-			return
-		}
-		for event := range qr {
-			switch event.Event {
-			case "code":
-				w.emit(map[string]any{"type": "qr", "code": event.Code, "expiresAtMs": time.Now().Add(event.Timeout).UnixMilli()})
-			case "success":
-				return // The connected event confirms readiness.
-			default:
-				w.setState("pairing_required")
-			}
-		}
-		if !client.IsLoggedIn() {
-			w.setState("pairing_required")
+		outcome := pairWithQR(w.ctx, client, func() {
+			w.setState("pairing")
+		}, func(event whatsmeow.QRChannelItem) {
+			w.emit(map[string]any{"type": "qr", "code": event.Code, "expiresAtMs": time.Now().Add(event.Timeout).UnixMilli()})
+		})
+		if outcome == "" {
+			// A linked device still needs the post-pairing login. Connected may already have arrived.
+			w.transition("pairing", "connecting", "")
+		} else if w.ctx.Err() == nil && !client.IsLoggedIn() {
+			client.Disconnect()
+			log.Printf("WhatsApp pairing ended: %s", outcome)
+			w.transition("", "pairing_required", outcome)
 		}
 	}()
 }

@@ -9,6 +9,14 @@ const statusLabels = {
   pairing_required: "Pairing required", pairing: "Waiting for scan", offline: "Offline",
   worker_unavailable: "Bridge unavailable", stopping: "Stopping",
 };
+const pairInstructions = "On your phone, open WhatsApp → Linked Devices → Link a Device.";
+const pairingHelp = {
+  qr_expired: "The QR expired. Requesting a fresh code…",
+  qr_setup_failed: "Could not start pairing. Select Get a new QR to retry.",
+  pair_connection_failed: "Could not connect to WhatsApp. Check your internet connection and retry.",
+  client_outdated: "WhatsApp rejected this bridge version. Update the app before trying again.",
+  pair_failed: "WhatsApp could not finish pairing. Select Get a new QR and try again.",
+};
 let configs = {};
 let mode = "";
 let refreshing = false;
@@ -93,8 +101,12 @@ async function refresh() {
     }
     updateControls(!mode);
     element("connection").textContent = statusLabels[data.whatsapp] || data.whatsapp;
-    element("pair-help").hidden = data.whatsapp === "connected";
+    const help = element("pair-help");
+    help.hidden = data.whatsapp === "connected";
+    help.textContent = data.whatsapp === "connecting" ? "Finishing the WhatsApp connection…"
+      : pairingHelp[data.pairingError] || pairInstructions;
     element("pair").hidden = data.whatsapp === "connected";
+    element("pair").textContent = data.pairingError ? "Get a new QR" : "Request pairing QR";
     element("pair").disabled = data.whatsapp !== "pairing_required" || Boolean(mode);
     if (data.whatsapp === "pairing") {
       const { image } = await api("/api/pairing");
@@ -105,8 +117,9 @@ async function refresh() {
       } else clearQR();
     } else {
       clearQR();
-      if (data.whatsapp === "pairing_required" && Date.now() > nextPairAttempt) {
-        nextPairAttempt = Date.now() + 5 * 60_000;
+      const retryExpired = data.pairingError === "qr_expired";
+      if (data.whatsapp === "pairing_required" && (!data.pairingError || retryExpired) && Date.now() >= nextPairAttempt) {
+        nextPairAttempt = Date.now() + 15_000;
         await api("/api/pairing", { method: "POST" });
       }
     }
