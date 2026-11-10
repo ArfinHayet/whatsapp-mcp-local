@@ -1,0 +1,93 @@
+#!/bin/sh
+set -eu
+umask 077
+
+if [ "$(/usr/bin/uname -s)" != Darwin ]; then
+  echo 'This installer requires macOS.' >&2
+  exit 1
+fi
+if [ "$(/usr/bin/id -u)" -eq 0 ]; then
+  echo 'Run ./setup as your regular macOS user. It will request administrator access when needed.' >&2
+  exit 1
+fi
+major=$(/usr/bin/sw_vers -productVersion | /usr/bin/cut -d. -f1)
+if [ "$major" -lt 15 ]; then
+  echo 'WhatsApp MCP Local requires macOS 15 or later.' >&2
+  exit 1
+fi
+repo=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)
+owner=$(/usr/bin/id -un)
+app='/Library/Application Support/WhatsApp MCP'
+cli="$app/bin/whatsapp-mcp"
+# shellcheck source=install/runtime-versions.sh
+. "$repo/install/runtime-versions.sh"
+
+stage=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/whatsapp-mcp.XXXXXXXX")
+trap '/bin/rm -rf "$stage"' EXIT
+trap 'exit 1' HUP INT TERM
+/bin/mkdir -p "$stage/node" "$stage/go-tool" "$stage/release/node/bin" "$stage/release/bin"
+
+fetch_archive() {
+  url=$1
+  sha=$2
+  dest=$3
+  /usr/bin/curl --proto '=https' --tlsv1.2 -fLsS --retry 2 --connect-timeout 20 "$url" -o "$dest"
+  printf '%s  %s\n' "$sha" "$dest" | /usr/bin/shasum -a 256 -c -
+}
+
+echo "Preparing Node $NODE_VERSION..."
+node_archive="node-v$NODE_VERSION-darwin-$NODE_ARCH.tar.gz"
+fetch_archive "https://nodejs.org/dist/v$NODE_VERSION/$node_archive" "$NODE_SHA" "$stage/node.tar.gz"
+/usr/bin/tar -xzf "$stage/node.tar.gz" -C "$stage/node" --strip-components 1
+if [ ! -f "$app/.whatsapp-mcp-install" ]; then
+  "$stage/node/bin/node" "$repo/install/preflight.mjs"
+fi
+
+echo "Preparing Go $GO_VERSION..."
+fetch_archive "https://go.dev/dl/go$GO_VERSION.darwin-$GO_ARCH.tar.gz" "$GO_SHA" "$stage/go.tar.gz"
+/usr/bin/tar -xzf "$stage/go.tar.gz" -C "$stage/go-tool" --strip-components 1
+ffmpeg=$(command -v ffmpeg || true)
+case "$ffmpeg" in
+  /*) [ -x "$ffmpeg" ] || ffmpeg= ;;
+  *) ffmpeg= ;;
+esac
+if [ -z "$ffmpeg" ]; then
+  echo 'FFmpeg was not found. Ogg Opus voice notes work. Other audio needs FFmpeg.'
+fi
+printf '%s\n' "$ffmpeg" > "$stage/release/ffmpeg.path"
+
+/bin/cp "$stage/node/bin/node" "$stage/release/node/bin/node"
+/bin/cp "$stage/node/LICENSE" "$stage/release/node/LICENSE"
+/bin/cp "$repo/LICENSE" "$stage/release/LICENSE"
+/bin/mkdir "$stage/release/server"
+/bin/cp "$repo/server/package.json" "$repo/server/package-lock.json" "$repo/server/tsconfig.json" "$stage/release/server/"
+/usr/bin/ditto "$repo/server/src" "$stage/release/server/src"
+/usr/bin/ditto "$repo/server/public" "$stage/release/server/public"
+/usr/bin/ditto "$repo/migrations" "$stage/release/migrations"
+export PATH="$stage/node/bin:$stage/go-tool/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export GOTOOLCHAIN=local
+npm --prefix "$stage/release/server" ci --no-audit --no-fund
+npm --prefix "$stage/release/server" run build
+npm --prefix "$stage/release/server" prune --omit=dev --no-audit --no-fund
+/bin/rm -rf "$stage/release/server/src" "$stage/release/server/tsconfig.json"
+(
+  cd "$repo/go"
+  CGO_ENABLED=0 go build -mod=readonly -trimpath -o "$stage/release/bin/whatsapp-bridge" ./cmd/whatsapp-bridge
+  CGO_ENABLED=0 go build -mod=readonly -trimpath -o "$stage/whatsapp-mcp" ./cmd/whatsapp-mcp
+)
+
+/bin/cp "$repo/install/launchd.plist.template" "$stage/com.whatsapp-mcp.local.plist"
+/usr/bin/plutil -replace UserName -string "$owner" "$stage/com.whatsapp-mcp.local.plist"
+/usr/bin/plutil -lint "$stage/com.whatsapp-mcp.local.plist"
+/bin/cp "$repo/install/run-at-boot" "$stage/run-at-boot"
+first_install=0
+[ -L "$app/current" ] || first_install=1
+echo 'Administrator access is needed to register the system LaunchDaemon.'
+/usr/bin/sudo /bin/sh "$repo/install/install-release" "$stage" "$owner"
+
+if [ "$first_install" -eq 1 ] || [ -f "$app/data/control/enabled" ]; then
+  "$cli" start
+else
+  echo "Updated. The service is still stopped."
+  printf 'Start it with: "%s" start\n' "$cli"
+fi

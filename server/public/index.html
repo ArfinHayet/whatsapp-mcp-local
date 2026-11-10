@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WhatsApp MCP Local</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">LOCAL WHATSAPP SERVICE</p>
+      <h1>WhatsApp MCP</h1>
+      <p>Pair WhatsApp, connect your agents, and manage the service on this Mac.</p>
+    </header>
+
+    <section aria-labelledby="connection-title">
+      <div class="section-heading"><h2 id="connection-title">WhatsApp connection</h2><span id="connection" role="status">Starting</span></div>
+      <p id="pair-help">On your phone, open WhatsApp → Linked Devices → Link a Device.</p>
+      <img id="qr" width="300" height="300" alt="Scan this QR code in WhatsApp Linked Devices" hidden>
+      <button id="pair" type="button" disabled>Request pairing QR</button>
+    </section>
+
+    <section aria-labelledby="agent-title">
+      <h2 id="agent-title">Agent setup</h2>
+      <p>Copy your agent’s configuration, merge it into its settings, then reload the agent.</p>
+      <label for="client">AI agent</label>
+      <select id="client">
+        <option value="codex">Codex Desktop</option>
+        <option value="claude">Claude Desktop</option>
+        <option value="hermes">Hermes</option>
+      </select>
+      <p id="config-file" class="hint"></p>
+      <label for="config" class="sr-only">MCP configuration</label>
+      <textarea id="config" rows="6" readonly spellcheck="false"></textarea>
+      <button id="copy" type="button" disabled>Copy configuration</button>
+    </section>
+
+    <section aria-labelledby="files-title">
+      <h2 id="files-title">Files</h2>
+      <p>Upload a file up to 20 MiB, then copy its ID for your agent to use with <code>send_file</code> or <code>send_audio_message</code>.</p>
+      <form id="upload">
+        <label for="file" class="sr-only">Choose a file</label>
+        <input id="file" type="file" required>
+        <button id="upload-button" type="submit" disabled>Upload</button>
+      </form>
+      <p id="empty-files" class="hint">No files yet.</p>
+      <ul id="files"></ul>
+    </section>
+
+    <section aria-labelledby="service-title">
+      <h2 id="service-title">Service controls</h2>
+      <p>Restart reconnects the bridge. Stop shuts down both processes and keeps them off after reboot.</p>
+      <div class="actions">
+        <button id="restart" type="button" disabled>Restart service</button>
+        <button id="stop" class="stop" type="button" disabled>Stop service</button>
+      </div>
+      <div id="start-instructions" hidden>
+        <p>Run this command in Terminal to start the service again.</p>
+        <pre id="start-command"></pre>
+        <button id="copy-start" type="button">Copy start command</button>
+      </div>
+    </section>
+    <p id="notice" role="status" aria-live="polite"></p>
+  </main>
+</body>
+</html>

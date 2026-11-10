@@ -1,0 +1,32 @@
+:root { color-scheme: light; font: 16px/1.5 system-ui, sans-serif; background: #f1f4f0; color: #162d25; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { margin: 0 auto; max-width: 800px; padding: 40px 20px 70px; }
+header { margin-bottom: 24px; }
+h1 { margin: 0; font-size: clamp(2.2rem, 7vw, 3.4rem); letter-spacing: -.055em; }
+h2 { margin: 0; font-size: 1.2rem; }
+p { margin: .6em 0; }
+section { background: #fff; border: 1px solid #d9e4dc; border-radius: 14px; margin: 12px 0; padding: 22px; }
+.eyebrow { font-size: .75rem; letter-spacing: .14em; font-weight: 700; color: #225c48; }
+.section-heading, .actions, form, li { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.section-heading { justify-content: space-between; }
+#connection { background: #e1f1e8; border-radius: 100px; padding: 4px 11px; font-size: .9rem; font-weight: 650; }
+button, select, input { font: inherit; }
+button, select { border-radius: 8px; border: 1px solid #74988b; padding: 6px 12px; background: #f7fbf8; color: #173f31; }
+button { cursor: pointer; }
+button:disabled { opacity: .58; cursor: default; }
+button:not(:disabled):hover { background: #e1f1e8; }
+.stop { border-color: #aa665f; color: #87342c; background: #fff4f1; }
+.stop:not(:disabled):hover { background: #fbe7e3; }
+textarea, pre { width: 100%; border: 1px solid #d9e4dc; background: #f6f8f6; border-radius: 8px; padding: 11px; white-space: pre-wrap; overflow-wrap: anywhere; }
+textarea, code, pre { font: .88rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+textarea { display: block; margin: 8px 0; resize: vertical; }
+#qr { display: block; max-width: 100%; height: auto; margin: 8px 0; }
+[hidden], #qr[hidden] { display: none; }
+.hint { color: #4b6359; font-size: .9rem; overflow-wrap: anywhere; }
+ul { padding: 0; margin-bottom: 0; }
+li { border-top: 1px solid #d9e4dc; padding: 9px 0; overflow-wrap: anywhere; }
+li a { color: #216a4e; font-weight: 650; }
+li code { font-size: .78rem; }
+#notice { min-height: 1.5em; font-weight: 600; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

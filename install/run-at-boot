@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+umask 077
+
+app='/Library/Application Support/WhatsApp MCP'
+data="$app/data"
+[ -f "$data/control/enabled" ] || exit 0
+
+log="$data/logs/service.log"
+if [ -f "$log" ] && [ "$(/usr/bin/stat -f %z "$log")" -gt 5242880 ]; then
+  /bin/mv -f "$log" "$log.previous"
+fi
+
+exec "$app/current/node/bin/node" "$app/current/server/dist/main.js" \
+  --data-dir "$data" >>"$log" 2>&1

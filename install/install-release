@@ -1,0 +1,78 @@
+#!/bin/sh
+set -eu
+umask 022
+
+stage=$1
+owner=$2
+app='/Library/Application Support/WhatsApp MCP'
+label='com.whatsapp-mcp.local'
+plist="/Library/LaunchDaemons/$label.plist"
+[ "$(/usr/bin/id -u)" -eq 0 ] && [ "$owner" = "${SUDO_USER:-}" ] && [ "$owner" != root ] || exit 1
+[ ! -L "$app" ] || { echo 'The app directory is a symlink.' >&2; exit 1; }
+if [ -e "$app" ] && [ ! -f "$app/.whatsapp-mcp-install" ]; then
+  echo 'The app directory already exists and does not belong to this installer.' >&2
+  exit 1
+fi
+if [ -e "$plist" ] && [ ! -f "$app/.whatsapp-mcp-install" ]; then
+  echo 'The LaunchDaemon label is already in use.' >&2
+  exit 1
+fi
+if [ -f "$app/.whatsapp-mcp-install" ] && [ "$(/bin/cat "$app/.whatsapp-mcp-install")" != "$owner" ]; then
+  echo 'Re-run setup as the Mac account that originally installed the app.' >&2
+  exit 1
+fi
+
+/usr/bin/install -d -o root -g wheel -m 755 "$app" "$app/bin" "$app/releases"
+/bin/mkdir "$app/.install-lock" || { echo 'Another installation is in progress.' >&2; exit 1; }
+trap '/bin/rmdir "$app/.install-lock"' EXIT
+if [ ! -f "$app/.whatsapp-mcp-install" ]; then
+  /usr/bin/install -d -o "$owner" -g staff -m 700 "$app/data" "$app/data/db" "$app/data/run" \
+    "$app/data/assets" "$app/data/control" "$app/data/logs"
+  printf '%s\n' "$owner" > "$app/.whatsapp-mcp-install"
+fi
+
+release=$(/usr/bin/mktemp -d "$app/releases/build.XXXXXXXX")
+/usr/bin/ditto "$stage/release" "$release"
+/usr/sbin/chown -R root:wheel "$release"
+/bin/chmod -R a+rX,go-w "$release"
+previous=$(/usr/bin/readlink "$app/current" || true)
+was_loaded=0
+if /bin/launchctl print "system/$label" >/dev/null 2>&1; then
+  /bin/launchctl bootout "system/$label"
+  was_loaded=1
+fi
+
+# Snapshot the stopped database as the service user, with no root access to user-managed paths.
+if [ -n "$previous" ]; then
+  if ! /usr/bin/sudo -u "$owner" /bin/sh -eu -c '
+    umask 077
+    data=$1
+    /bin/mkdir -p "$data/backups"
+    backup=$(/usr/bin/mktemp -d "$data/backups/pre-upgrade.XXXXXXXX")
+    for file in "$data"/db/*.sqlite3 "$data"/db/*.sqlite3-wal; do
+      [ ! -f "$file" ] || /bin/cp -p "$file" "$backup/"
+    done
+  ' sh "$app/data"; then
+    [ "$was_loaded" -ne 1 ] || /bin/launchctl bootstrap system "$plist"
+    echo 'The database backup failed. The current release was kept.' >&2
+    exit 1
+  fi
+fi
+
+/usr/bin/install -o root -g wheel -m 755 "$stage/whatsapp-mcp" "$app/bin/whatsapp-mcp"
+/usr/bin/install -o root -g wheel -m 755 "$stage/run-at-boot" "$app/bin/run-at-boot"
+/usr/bin/install -o root -g wheel -m 644 "$stage/$label.plist" "$plist"
+/bin/rm -f "$app/.current-new"
+/bin/ln -s "releases/${release##*/}" "$app/.current-new"
+/bin/mv -fh "$app/.current-new" "$app/current"
+if ! /bin/launchctl bootstrap system "$plist"; then
+  if [ -n "$previous" ]; then
+    /bin/ln -sfn "$previous" "$app/current"
+    /bin/launchctl bootstrap system "$plist" || true
+  else
+    # Keep the data directory for a repeatable setup attempt.
+    /bin/rm -f "$plist" "$app/current"
+  fi
+  echo 'Could not register the system LaunchDaemon.' >&2
+  exit 1
+fi
