@@ -6,7 +6,39 @@ stage=$1
 owner=$2
 app='/Library/Application Support/WhatsApp MCP'
 label='com.whatsapp-mcp.local'
+domain=system
+service="$domain/$label"
 plist="/Library/LaunchDaemons/$label.plist"
+
+service_registered() {
+  /bin/launchctl print "$service" >/dev/null 2>&1
+}
+
+wait_for_service_removal() {
+  remaining=30
+  while service_registered; do
+    if [ "$remaining" -eq 0 ]; then
+      echo 'The previous LaunchDaemon is still shutting down. Run setup again after it exits.' >&2
+      return 1
+    fi
+    /bin/sleep 1
+    remaining=$((remaining - 1))
+  done
+}
+
+bootstrap_service() {
+  attempts=5
+  while [ "$attempts" -gt 0 ]; do
+    if failure=$(/bin/launchctl bootstrap "$domain" "$plist" 2>&1) || service_registered; then
+      return 0
+    fi
+    attempts=$((attempts - 1))
+    [ "$attempts" -eq 0 ] || /bin/sleep 1
+  done
+  printf '%s\n' "$failure" >&2
+  return 1
+}
+
 [ "$(/usr/bin/id -u)" -eq 0 ] && [ "$owner" = "${SUDO_USER:-}" ] && [ "$owner" != root ] || exit 1
 [ ! -L "$app" ] || { echo 'The app directory is a symlink.' >&2; exit 1; }
 if [ -e "$app" ] && [ ! -f "$app/.whatsapp-mcp-install" ]; then
@@ -37,8 +69,10 @@ release=$(/usr/bin/mktemp -d "$app/releases/build.XXXXXXXX")
 /bin/chmod -R a+rX,go-w "$release"
 previous=$(/usr/bin/readlink "$app/current" || true)
 was_loaded=0
-if /bin/launchctl print "system/$label" >/dev/null 2>&1; then
-  /bin/launchctl bootout "system/$label"
+if service_registered; then
+  /bin/launchctl bootout "$service"
+  # bootout can return before the old process exits and the label is removed.
+  wait_for_service_removal
   was_loaded=1
 fi
 
@@ -53,7 +87,7 @@ if [ -n "$previous" ]; then
       [ ! -f "$file" ] || /bin/cp -p "$file" "$backup/"
     done
   ' sh "$app/data"; then
-    [ "$was_loaded" -ne 1 ] || /bin/launchctl bootstrap system "$plist"
+    [ "$was_loaded" -ne 1 ] || bootstrap_service
     echo 'The database backup failed. The current release was kept.' >&2
     exit 1
   fi
@@ -65,10 +99,10 @@ fi
 /bin/rm -f "$app/.current-new"
 /bin/ln -s "releases/${release##*/}" "$app/.current-new"
 /bin/mv -fh "$app/.current-new" "$app/current"
-if ! /bin/launchctl bootstrap system "$plist"; then
+if ! bootstrap_service; then
   if [ -n "$previous" ]; then
     /bin/ln -sfn "$previous" "$app/current"
-    /bin/launchctl bootstrap system "$plist" || true
+    bootstrap_service || true
   else
     # Keep the data directory for a repeatable setup attempt.
     /bin/rm -f "$plist" "$app/current"
