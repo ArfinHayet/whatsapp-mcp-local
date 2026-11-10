@@ -15,11 +15,11 @@ lsof -nP -iTCP:7865 -sTCP:LISTEN
 - If port 7865 is occupied by another app, free the port before starting WhatsApp MCP.
 - After a temporary network outage, allow the bridge to reconnect. If the linked device was revoked, open the dashboard and request a new QR.
 - After a deliberate stop, run the displayed start command. A local agent connection cannot restart the service.
-- If the bridge cannot convert an audio format, use Ogg Opus or install FFmpeg and rerun setup.
+- If the bridge cannot convert an audio format, use Ogg Opus or install FFmpeg and run `./setup --upgrade`.
 
 ## Upgrades and backup
 
-Pull the new code and rerun `./setup`. Setup builds a new release before switching the installed runtime. It stops the app to copy the SQLite databases and their WAL files, when present, into `data/backups`. Uploaded and downloaded files stay in `data/assets`. A deliberate stop stays in effect during an upgrade.
+Pull the new code and run `./setup --upgrade`. Setup builds a new release before switching the installed runtime. It stops the app to copy the SQLite databases and their WAL files, when present, into `data/backups`. Uploaded and downloaded files stay in `data/assets`. A deliberate stop stays in effect during an upgrade.
 
 For a manual backup, stop the app before copying its entire `data` directory to a location you control. The backup contains WhatsApp session keys and message history. Keep it private.
 

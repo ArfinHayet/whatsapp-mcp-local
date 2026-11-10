@@ -2,6 +2,12 @@
 set -eu
 umask 077
 
+case "$#:${1:-}" in
+  0:|1:--upgrade) ;;
+  1:-h|1:--help) printf 'Usage: %s [--upgrade]\n' "$0"; exit 0 ;;
+  *) printf 'Usage: %s [--upgrade]\n' "$0" >&2; exit 2 ;;
+esac
+
 if [ "$(/usr/bin/uname -s)" != Darwin ]; then
   echo 'This installer requires macOS.' >&2
   exit 1
@@ -19,6 +25,14 @@ repo=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)
 owner=$(/usr/bin/id -un)
 app='/Library/Application Support/WhatsApp MCP'
 cli="$app/bin/whatsapp-mcp"
+
+if [ "$#" -eq 0 ] && [ -f "$app/data/control/enabled" ] &&
+  /bin/launchctl print system/com.whatsapp-mcp.local 2>/dev/null |
+    /usr/bin/grep -q '^[[:space:]]*state = running$'; then
+  echo 'WhatsApp MCP dashboard: http://localhost:7865'
+  exec /usr/bin/open 'http://localhost:7865'
+fi
+
 # shellcheck source=install/runtime-versions.sh
 . "$repo/install/runtime-versions.sh"
 

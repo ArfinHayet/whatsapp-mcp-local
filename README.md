@@ -14,6 +14,8 @@ cd whatsapp-mcp-local
 
 Setup downloads checksum-pinned Node and Go runtimes, installs the locked npm and Go dependencies, builds the app, and prompts for your administrator password to register the LaunchDaemon. It needs internet access during setup and uses port 7865. GitHub access is required to clone this private repository. The installed service uses SQLite and has no application login.
 
+When WhatsApp MCP is already running, `./setup` opens the dashboard in your default browser. Run `./setup --upgrade` to install a new version.
+
 The dashboard opens when the local service is ready. On your phone, go to **WhatsApp → Linked Devices → Link a Device** and scan the QR. Pair as a fresh linked device. The bridge saves the session and imports the chats and messages WhatsApp supplies through linked-device sync.
 
 Choose your agent under **Agent setup**, copy its configuration, and merge it into the agent’s settings. See [agent setup](docs/agent-setup.md). Close the browser and Terminal whenever you’re done. The service continues running in the background.
@@ -23,7 +25,7 @@ Choose your agent under **Agent setup**, copy its configuration, and merge it in
 - **Files** accepts uploads up to 20 MiB. Copy the uploaded file’s ID into an agent request that uses `send_file` or `send_audio_message`. Uploaded and downloaded assets are saved under the installed app’s `data/assets` directory.
 - **Restart service** restarts the Node server and Go bridge and reconnects the saved WhatsApp session.
 - **Stop service** stops both processes and persists the stopped state through reboots. The open tab displays the start command. Once the server exits, reloading the dashboard shows a connection error until you start it again.
-- For voice notes, Ogg Opus files work directly. For common formats that need conversion, install FFmpeg and rerun `./setup` so the bridge can find it. Some media containers require seeking during conversion. If FFmpeg rejects one, convert it to Ogg Opus before uploading.
+- For voice notes, Ogg Opus files work directly. For common formats that need conversion, install FFmpeg and run `./setup --upgrade` so the bridge can find it. Some media containers require seeking during conversion. If FFmpeg rejects one, convert it to Ogg Opus before uploading.
 
 Run the installed CLI from any directory.
 
