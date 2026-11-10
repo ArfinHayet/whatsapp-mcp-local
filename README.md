@@ -16,7 +16,7 @@ Setup downloads checksum-pinned Node and Go runtimes, installs the locked npm an
 
 When WhatsApp MCP is already running, `./setup` opens the dashboard in your default browser. Run `./setup --upgrade` to install a new version.
 
-The dashboard opens when the local service is ready. On your phone, go to **WhatsApp → Linked Devices → Link a Device** and scan the QR. Pair as a fresh linked device. The bridge saves the session and imports the chats and messages WhatsApp supplies through linked-device sync.
+Setup opens the dashboard in your default browser once the local service is ready. On your phone, go to **WhatsApp → Linked Devices → Link a Device** and scan the QR. Pair as a fresh linked device. The bridge saves the session and imports the chats and messages WhatsApp supplies through linked-device sync.
 
 Choose your agent under **Agent setup**, copy its configuration, and merge it into the agent’s settings. See [agent setup](docs/agent-setup.md). Close the browser and Terminal whenever you’re done. The service continues running in the background.
 

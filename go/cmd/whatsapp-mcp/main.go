@@ -57,10 +57,16 @@ func run() error {
 	if os.Geteuid() == 0 {
 		return errors.New("run this command as the macOS user selected at setup")
 	}
+	if len(os.Args) == 3 && os.Args[1] == "start" && os.Args[2] == "--no-browser" {
+		return start(data)
+	}
 	if len(os.Args) == 2 {
 		switch os.Args[1] {
 		case "start":
-			return start(data)
+			if err := start(data); err != nil {
+				return err
+			}
+			return openDashboard()
 		case "stop", "restart":
 			return control(os.Args[1], data)
 		case "status":
@@ -69,7 +75,7 @@ func run() error {
 			return withStateLock(data, func() error { return setEnabled(data, false) })
 		}
 	}
-	return errors.New("usage: whatsapp-mcp {start|stop|restart|status|stdio}")
+	return errors.New("usage: whatsapp-mcp {start [--no-browser]|stop|restart|status|stdio}")
 }
 
 func relayStdio(path, executable string) error {
@@ -149,7 +155,7 @@ func daemonRunning() bool {
 
 func start(data string) error {
 	if state, ok := getHealth(); ok && state.State == "running" {
-		return openDashboard()
+		return nil
 	}
 	// Obtain approval before changing the persistent state.
 	if err := sudo("-v"); err != nil {
@@ -180,10 +186,7 @@ func start(data string) error {
 	if err != nil {
 		return err
 	}
-	if err := waitForHealth(""); err != nil {
-		return err
-	}
-	return openDashboard()
+	return waitForHealth("")
 }
 
 func status(data string) error {

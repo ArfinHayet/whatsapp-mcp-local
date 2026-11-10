@@ -26,11 +26,16 @@ owner=$(/usr/bin/id -un)
 app='/Library/Application Support/WhatsApp MCP'
 cli="$app/bin/whatsapp-mcp"
 
+open_dashboard() {
+  echo 'WhatsApp MCP dashboard: http://localhost:7865'
+  /usr/bin/open 'http://localhost:7865'
+}
+
 if [ "$#" -eq 0 ] && [ -f "$app/data/control/enabled" ] &&
   /bin/launchctl print system/com.whatsapp-mcp.local 2>/dev/null |
     /usr/bin/grep -q '^[[:space:]]*state = running$'; then
-  echo 'WhatsApp MCP dashboard: http://localhost:7865'
-  exec /usr/bin/open 'http://localhost:7865'
+  open_dashboard
+  exit 0
 fi
 
 # shellcheck source=install/runtime-versions.sh
@@ -103,7 +108,8 @@ echo 'Administrator access is needed to register the system LaunchDaemon.'
 /usr/bin/sudo /bin/sh "$repo/install/install-release" "$stage" "$owner"
 
 if [ "$first_install" -eq 1 ] || [ -f "$app/data/control/enabled" ]; then
-  "$cli" start
+  "$cli" start --no-browser
+  open_dashboard
 else
   echo "Updated. The service is still stopped."
   printf 'Start it with: "%s" start\n' "$cli"
